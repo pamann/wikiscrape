@@ -1,0 +1,6 @@
+/graphs
+/queues
+/toparse
+/venv
+.idea/
+__pycache__/
