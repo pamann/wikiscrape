@@ -4,9 +4,21 @@ import time
 import json
 from collections import Counter
 
+# TODO: switch query root term to be generator for extracts from linked pages instead of filtering by hitting the api every time
+
 nodes = []
 links = []
 root_term = "Halloween"
+
+
+def parse_text(l):
+    print(l)
+    site = pywiki('en')
+    ext = wikipedia.search(l.title)[0]
+    # https://en.wikipedia.org/w/api.php?action=opensearch&search=bee&limit=1&format=json
+    for page in site.query(titles=ext, format="json", prop="extracts"):
+        print(root_term in page.pages[0].extract)
+    return root_term in page.pages[0].extract
 
 def fetch_links(root_term):
     site = pywiki('en')
@@ -14,21 +26,24 @@ def fetch_links(root_term):
     root = wikipedia.page(search_r[0])
     root_id = root.pageid
     count = 0
-    for page in site.query(format="json", pllimit="max", titles=root_term, prop="links", redirects=True, plnamespace=0):
+    for page in site.query(format="json", pllimit="max", titles=root_term, prop=["links"], redirects=True, plnamespace=0):
         page = page.pages[0]
+        # print(page["extract"])
         gen = []
         sub_nodes = []
         count += len(page.links)
+        links = list(filter(parse_text, page.links))
+        print(links)
         aggregate_links(root_term, page.links)
         nodes.append(root_term)
-        for link in page.links:
-            for page_2 in site.query(format="json", pllimit="max", titles=link.title, prop="links", redirects=True, plnamespace=0):
-                if "links" in page_2.pages[0]:
-                    scnd_l = page_2.pages[0].links
-                    aggregate_links(link.title, scnd_l)
-                    count += len(scnd_l)
-                    nodes.append(link.title)
-                    nodes.extend(list(l2.title for l2 in scnd_l))
+        for tier_s in site.query(format="json", pllimit="max", titles=links, prop="links", redirects=True, plnamespace=0):
+            print(tier_s)
+            if "links" in tier_s.pages[0]:
+                scnd_l = tier_s.pages[0].links
+                aggregate_links(link.title, scnd_l)
+                count += len(scnd_l)
+                nodes.append(link.title)
+                nodes.extend(list(l2.title for l2 in scnd_l))
         return count
 
 def aggregate_links(node, res):
@@ -50,11 +65,11 @@ timer = time.time() - start_time
 
 (fnode_counts, fnodes) = count_nodes()
 
-with open('{root_term}_links.json', 'w') as outfile:
-    json.dump(links, outfile)
+# with open('{root_term}_links.json', 'w') as outfile:
+#     json.dump(links, outfile)
 
-with open('{root_term}_nodes.json', 'w') as outfile:
-    json.dump(nodes, outfile)
+# with open('{root_term}_nodes.json', 'w') as outfile:
+#     json.dump(nodes, outfile)
 
 print(f"Number of nodes (pre-filter): {len(nodes)}")
 print(f"Number of nodes (post-filter): {len(fnode_counts)}")
