@@ -13,12 +13,13 @@ root_term = "Halloween"
 
 def parse_text(l):
     print(l)
-    site = pywiki('en')
-    ext = wikipedia.search(l.title)[0]
+    # site = pywiki('en')
+
+    # ext = wikipedia.search(l.title)[0]
     # https://en.wikipedia.org/w/api.php?action=opensearch&search=bee&limit=1&format=json
-    for page in site.query(titles=ext, format="json", prop="extracts"):
-        print(root_term in page.pages[0].extract)
-    return root_term in page.pages[0].extract
+    # for page in site.query(titles=ext, format="json", prop="extracts"):
+        # print(root_term in page.pages[0].extract)
+    # return root_term in page.pages[0].extract
 
 def fetch_links(root_term):
     site = pywiki('en')
@@ -26,14 +27,19 @@ def fetch_links(root_term):
     root = wikipedia.page(search_r[0])
     root_id = root.pageid
     count = 0
-    for page in site.query(format="json", pllimit="max", titles=root_term, prop=["links"], redirects=True, plnamespace=0):
+    for page in site.query(generator="alllinks", galtitle=root_term, format="json", pllimit="max", lhlimit="max", prop=["links", "extracts"], redirects=True):
         page = page.pages[0]
-        # print(page["extract"])
         gen = []
         sub_nodes = []
         count += len(page.links)
-        links = list(filter(parse_text, page.links))
-        print(links)
+        # print(page)
+        links = page.links
+        print(links[0])
+        ext = page.extract
+        res = {links[i].title: ext[i] for i in range(len(links))} 
+        print(res)
+        # links = {links: p for links, p in page if root_term in p.extract}
+        # links = list(filter(parse_text, page.values()))
         aggregate_links(root_term, page.links)
         nodes.append(root_term)
         for tier_s in site.query(format="json", pllimit="max", titles=links, prop="links", redirects=True, plnamespace=0):
