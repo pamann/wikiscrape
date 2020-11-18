@@ -53,7 +53,7 @@ def aggregate_links(node, res):
 
 def aggregate_nodes(n_list, v):
     obj = ({
-        "node": node,
+        "name": node,
         "value": v
     } for node in n_list)
     nodes.extend(obj)
@@ -62,10 +62,9 @@ start_time = time.time()
 fetch_links(root_term)
 timer = time.time() - start_time
 
-with open(f'{root_term}_links.json', 'w') as outfile:
-    json.dump(links, outfile)
+graph = {'nodes': nodes, 'links': links}
 
-with open(f'{root_term}_nodes.json', 'w') as outfile:
-    json.dump(nodes, outfile)
+with open(f'{root_term}.json', 'w') as outfile:
+    json.dump(graph, outfile)
 
 print(f"Runs in: {timer}")
