@@ -4,4 +4,4 @@
 /venv
 .idea/
 __pycache__/
-/*.json
+*.json
