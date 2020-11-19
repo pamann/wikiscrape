@@ -9,6 +9,7 @@ from concurrent import futures
 from multiprocessing import Pool
 import multiprocessing as mp
 from multiprocessing import Queue
+import pickle
 
 nodes = set()
 links = set()
@@ -16,24 +17,23 @@ root_term = "Halloween"
 site = pywiki('en')
 pool = ThreadPoolExecutor(8) # 8 threads, adjust to taste and # of cores
 jobs = []
+# count = 0
 
-def query_wiki(ttls):
+def query_wiki(ttls, tier):
     global site
-    query = site.query(titles=ttls, format="json", pllimit="max", lhlimit="max", prop=["links", "linkshere"], redirects=True)
-    return query
+    for page in site.query(titles=ttls, format="json", pllimit="max", lhlimit="max", prop=["links", "linkshere"], redirects=True):
+        page = page.pages[0]
+        process_comp_jobs(page, tier)
+    
 
-def process_comp_jobs(tt_page_s):
-    print(tt_page_s)
+def process_comp_jobs(tt_page_s, tier):
     if 'links' in tt_page_s and 'linkshere' in tt_page_s:
         l = [v.title for v in tt_page_s.links]
         lh = [v.title for v in tt_page_s.linkshere]
         lset = set(l)
         lhset = set(lh)
         tt_bidi_links = lset.intersection(lhset)
-        # print(f"Links: {len(l)}, lset: {len(lset)}")
-        # print(f"Links here: {len(lh)}, lhset: {len(lhset)}")
-        # print(f"Bidi links: {len(tt_bidi_links)}")
-        aggregate_nodes(tt_bidi_links, 1)
+        aggregate_nodes(tt_bidi_links, tier)
         aggregate_links(tt_page_s.title, tt_bidi_links) 
 
 def fetch_links(root_term):
@@ -43,7 +43,7 @@ def fetch_links(root_term):
     root_id = root.pageid
     count = 0
     aggregate_nodes([root_term], 3)
-    for page in query_wiki(root_term):
+    for page in site.query(titles=root_term, format="json", pllimit="max", lhlimit="max", prop=["links", "linkshere"], redirects=True):
         page = page.pages[0]
         gen = []
         sub_nodes = []
@@ -57,29 +57,14 @@ def fetch_links(root_term):
             aggregate_nodes(bidi_links, 2) # bidi links from root_term
             with ThreadPoolExecutor(8) as executor: # start threaded bidi links of second tier
                 for bidi_link in bidi_links:
-                    jobs.append(executor.submit(query_wiki, bidi_link))
-                # print(list(futures.as_completed(jobs)))
-                # queue = Queue(list(futures.as_completed(jobs)))
+                    jobs.append(executor.submit(query_wiki, bidi_link, 1))
+            query_pool = Pool(processes=50)
+            tt_pool = [query_pool.apply_async(query_wiki, (p, 1))
+                for p in futures.as_completed(jobs)]
 
-                pool = Pool(processes=50)
-                [pool.apply_async(process_comp_jobs) # num_to_add is passed as an argument
-                    for res in futures.as_completed(jobs)]
-                pool.close()
-                pool.terminate()
-                pool.join()
-
-
-                # with Pool(5) as p:
-                #     p.map(process_comp_jobs, queue)
-                # for job in futures.as_completed(jobs):
-                #     # Read result from future
-                #     result = job.result()
-                #     # print(result)
-                #     if result:
-                #         for tt_page in result:
-                #             with ThreadPoolExecutor(8) as executor:
-                #                 for tt_page_s in tt_page.pages:
-                #                     jobs.append(executor.submit(process_comp_jobs, tt_page_s))
+            query_pool.close()
+            query_pool.terminate()
+            query_pool.join()
         else: 
             break
 
@@ -87,11 +72,13 @@ def aggregate_links(nodeid, res):
     global links
     obj = [(nodeid, link_dest) for link_dest in res]
     links = links.union(set(obj))
+    # print(res)
 
 def aggregate_nodes(n_list, v):
     global nodes
     obj = set([(node, v) for node in n_list])
     nodes = nodes.union(set(obj))
+    # print(n_list)
 
 start_time = time.time()
 fetch_links(root_term)
@@ -109,7 +96,10 @@ links = [{
 
 graph = {'nodes': nodes, 'links': list(links)}
 
+print(nodes)
+print(len(nodes))
 with open(f'{root_term}.json', 'w') as outfile:
     json.dump(graph, outfile)
 
 print(f"Runs in: {timer}")
+# print(count)
