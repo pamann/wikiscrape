@@ -48,18 +48,30 @@ def fetch_links(root_term):
             break
         
 def aggregate_links(nodeid, res):
+    global links
     obj = [(nodeid, link_dest) for link_dest in res]
-    links.union(set(obj))
+    links = links.union(set(obj))
 
 def aggregate_nodes(n_list, v):
-    obj = [(node, v) for node in n_list]
-    nodes.union(set(obj))
+    global nodes
+    obj = set([(node, v) for node in n_list])
+    nodes = nodes.union(set(obj))
 
 start_time = time.time()
 fetch_links(root_term)
 timer = time.time() - start_time
 
-graph = {'nodes': list(nodes), 'links': list(links)}
+# unpack sets of tuples into lists of dicts
+nodes = [{
+    "name": name,
+    "val": val
+} for (name, val) in nodes]
+links = [{
+    "source": src,
+    "target": dest
+} for (src, dest) in links]
+
+graph = {'nodes': nodes, 'links': list(links)}
 
 with open(f'{root_term}.json', 'w') as outfile:
     json.dump(graph, outfile)
