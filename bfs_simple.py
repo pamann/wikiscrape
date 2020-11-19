@@ -4,8 +4,8 @@ import time
 import json
 from collections import Counter
 
-nodes = []
-links = []
+nodes = set()
+links = set()
 root_term = "Halloween"
 
 def fetch_links(root_term):
@@ -33,9 +33,12 @@ def fetch_links(root_term):
                         if 'links' in tt_page_s and 'linkshere' in tt_page_s:
                             l = [v.title for v in tt_page_s.links]
                             lh = [v.title for v in tt_page_s.linkshere]
-                            tt_olink_set = set(l)
-                            tt_ilink_set = set(lh)
-                            tt_bidi_links = list(tt_olink_set & tt_ilink_set)
+                            lset = set(l)
+                            lhset = set(lh)
+                            tt_bidi_links = lset.intersection(lhset)
+                            # print(f"Links: {len(l)}, lset: {len(lset)}")
+                            # print(f"Links here: {len(lh)}, lhset: {len(lhset)}")
+                            # print(f"Bidi links: {len(tt_bidi_links)}")
                             aggregate_nodes(tt_bidi_links, 1)
                             aggregate_links(tt_page_s.title, tt_bidi_links)
                         else: 
@@ -44,25 +47,19 @@ def fetch_links(root_term):
         else: 
             break
         
-def aggregate_links(node, res):
-    obj = ({
-        "source": node,
-        "target": link_dest,
-    } for link_dest in res)
-    links.extend(obj)
+def aggregate_links(nodeid, res):
+    obj = [(nodeid, link_dest) for link_dest in res]
+    links.union(set(obj))
 
 def aggregate_nodes(n_list, v):
-    obj = ({
-        "name": node,
-        "value": v
-    } for node in n_list)
-    nodes.extend(obj)
+    obj = [(node, v) for node in n_list]
+    nodes.union(set(obj))
 
 start_time = time.time()
 fetch_links(root_term)
 timer = time.time() - start_time
 
-graph = {'nodes': nodes, 'links': links}
+graph = {'nodes': list(nodes), 'links': list(links)}
 
 with open(f'{root_term}.json', 'w') as outfile:
     json.dump(graph, outfile)
