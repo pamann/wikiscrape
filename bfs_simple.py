@@ -3,19 +3,45 @@ import wikipedia
 import time
 import json
 from collections import Counter
+# import concurrent
+from concurrent.futures import ThreadPoolExecutor
+from concurrent import futures
+from multiprocessing import Pool
 
 nodes = set()
 links = set()
 root_term = "Halloween"
+site = pywiki('en')
+pool = ThreadPoolExecutor(8) # 8 threads, adjust to taste and # of cores
+jobs = []
+
+def query_wiki(ttls):
+    global site
+    query = site.query(titles=ttls, format="json", pllimit="max", lhlimit="max", prop=["links", "linkshere"], redirects=True)
+    return query
+
+def process_comp_jobs(tt_page_s):
+    # print(tt_page_s)
+    if 'links' in tt_page_s and 'linkshere' in tt_page_s:
+        l = [v.title for v in tt_page_s.links]
+        lh = [v.title for v in tt_page_s.linkshere]
+        lset = set(l)
+        lhset = set(lh)
+        tt_bidi_links = lset.intersection(lhset)
+        # print(f"Links: {len(l)}, lset: {len(lset)}")
+        # print(f"Links here: {len(lh)}, lhset: {len(lhset)}")
+        print(f"Bidi links: {len(tt_bidi_links)}")
+        aggregate_nodes(tt_bidi_links, 1)
+        aggregate_links(tt_page_s.title, tt_bidi_links) 
 
 def fetch_links(root_term):
-    site = pywiki('en')
+    global jobs
     search_r = wikipedia.search(root_term)
     root = wikipedia.page(search_r[0])
     root_id = root.pageid
     count = 0
     aggregate_nodes([root_term], 3)
-    for page in site.query(titles=root_term, format="json", pllimit="max", lhlimit="max", prop=["links", "linkshere"], redirects=True):
+    for page in query_wiki(root_term):
         page = page.pages[0]
         gen = []
         sub_nodes = []
@@ -27,26 +53,21 @@ def fetch_links(root_term):
             bidi_links = [s.replace("'", "") for s in list(olink_set & ilink_set)]
             aggregate_links(root_term, bidi_links[0:50])
             aggregate_nodes(bidi_links, 2)
-            for bidi_link in bidi_links[0:50]:
-                for tt_page in site.query(titles=bidi_link, format="json", pllimit="max", lhlimit="max", prop=["links", "linkshere"], redirects=True):
-                    for tt_page_s in tt_page.pages:
-                        if 'links' in tt_page_s and 'linkshere' in tt_page_s:
-                            l = [v.title for v in tt_page_s.links]
-                            lh = [v.title for v in tt_page_s.linkshere]
-                            lset = set(l)
-                            lhset = set(lh)
-                            tt_bidi_links = lset.intersection(lhset)
-                            # print(f"Links: {len(l)}, lset: {len(lset)}")
-                            # print(f"Links here: {len(lh)}, lhset: {len(lhset)}")
-                            # print(f"Bidi links: {len(tt_bidi_links)}")
-                            aggregate_nodes(tt_bidi_links, 1)
-                            aggregate_links(tt_page_s.title, tt_bidi_links)
-                        else: 
-                            break
-
+            with ThreadPoolExecutor(8) as executor:
+                for bidi_link in bidi_links:
+                    jobs.append(executor.submit(query_wiki, bidi_link))
+                for job in futures.as_completed(jobs):
+                    # Read result from future
+                    result = job.result()
+                    # print(result)
+                    if result:
+                        for tt_page in result:
+                            with ThreadPoolExecutor(8) as executor:
+                                for tt_page_s in tt_page.pages:
+                                    jobs.append(executor.submit(process_comp_jobs, tt_page_s))
         else: 
             break
-        
+
 def aggregate_links(nodeid, res):
     global links
     obj = [(nodeid, link_dest) for link_dest in res]
