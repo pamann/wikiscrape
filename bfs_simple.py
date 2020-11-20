@@ -2,14 +2,10 @@ from pywikiapi import wikipedia as pywiki
 import wikipedia
 import time
 import json
-from collections import Counter
-# import concurrent
 from concurrent.futures import ThreadPoolExecutor
 from concurrent import futures
 from multiprocessing import Pool
-import multiprocessing as mp
 from multiprocessing import Queue
-import pickle
 
 nodes = set()
 links = set()
@@ -17,10 +13,10 @@ root_term = "Halloween"
 site = pywiki('en')
 pool = ThreadPoolExecutor(8) # 8 threads, adjust to taste and # of cores
 jobs = []
-# count = 0
 
 def query_wiki(ttls, tier):
     global site
+    print(ttls)
     for page in site.query(titles=ttls, format="json", pllimit="max", lhlimit="max", prop=["links", "linkshere"], redirects=True):
         page = page.pages[0]
         process_comp_jobs(page, tier)
@@ -102,4 +98,3 @@ with open(f'{root_term}.json', 'w') as outfile:
     json.dump(graph, outfile)
 
 print(f"Runs in: {timer}")
-# print(count)
